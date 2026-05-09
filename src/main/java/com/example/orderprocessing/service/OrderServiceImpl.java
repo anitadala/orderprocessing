@@ -10,6 +10,7 @@ import com.example.orderprocessing.model.Order;
 import com.example.orderprocessing.model.OrderItem;
 import com.example.orderprocessing.model.OrderStatus;
 import com.example.orderprocessing.repository.OrderRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
@@ -72,6 +73,13 @@ public class OrderServiceImpl implements OrderService {
 	public OrderResponse updateOrderStatus(Long id, OrderStatus status) {
 		Objects.requireNonNull(status, "status must not be null");
 		Order order = getOrderOrThrow(id);
+		OrderStatus current = order.getStatus();
+
+		// Business rule: only allow forward progression through the order lifecycle.
+		if (!isValidTransition(current, status)) {
+			throw new InvalidOrderStateException(id, current, "transition to " + status);
+		}
+
 		order.setStatus(status);
 		return toResponse(orderRepository.save(order));
 	}
@@ -79,12 +87,8 @@ public class OrderServiceImpl implements OrderService {
 	@Override
 	@Transactional
 	public int processPendingOrders() {
-		List<Order> pending = orderRepository.findByStatus(OrderStatus.PENDING);
-		for (Order order : pending) {
-			order.setStatus(OrderStatus.PROCESSING);
-		}
-		orderRepository.saveAll(pending);
-		return pending.size();
+		// Concurrency safety: update only rows that are still PENDING at write time.
+		return orderRepository.moveAllPendingToProcessing(Instant.now());
 	}
 
 	private Order getOrderOrThrow(Long id) {
@@ -106,6 +110,16 @@ public class OrderServiceImpl implements OrderService {
 			.quantity(request.getQuantity())
 			.price(request.getPrice())
 			.build();
+	}
+
+	private boolean isValidTransition(OrderStatus from, OrderStatus to) {
+		if (from == to) {
+			return true;
+		}
+
+		return (from == OrderStatus.PENDING && to == OrderStatus.PROCESSING)
+			|| (from == OrderStatus.PROCESSING && to == OrderStatus.SHIPPED)
+			|| (from == OrderStatus.SHIPPED && to == OrderStatus.DELIVERED);
 	}
 
 	private OrderResponse toResponse(Order order) {

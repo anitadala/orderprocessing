@@ -21,6 +21,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 @ExtendWith(MockitoExtension.class)
 class OrderServiceImplTest {
@@ -74,12 +75,38 @@ class OrderServiceImplTest {
 	}
 
 	@Test
-	void failToCancel_nonPendingOrder() {
-		Order order = Order.builder().id(6L).status(OrderStatus.SHIPPED).build();
+	void cancel_orderWhenProcessing_fails() {
+		Order order = Order.builder().id(6L).status(OrderStatus.PROCESSING).build();
 		when(orderRepository.findById(6L)).thenReturn(Optional.of(order));
 
 		assertThatThrownBy(() -> orderService.cancelOrder(6L))
 			.isInstanceOf(InvalidOrderStateException.class);
+	}
+
+	@Test
+	void cancel_orderWhenShipped_fails() {
+		Order order = Order.builder().id(7L).status(OrderStatus.SHIPPED).build();
+		when(orderRepository.findById(7L)).thenReturn(Optional.of(order));
+
+		assertThatThrownBy(() -> orderService.cancelOrder(7L))
+			.isInstanceOf(InvalidOrderStateException.class);
+	}
+
+	@Test
+	void cancel_orderWhenDelivered_fails() {
+		Order order = Order.builder().id(8L).status(OrderStatus.DELIVERED).build();
+		when(orderRepository.findById(8L)).thenReturn(Optional.of(order));
+
+		assertThatThrownBy(() -> orderService.cancelOrder(8L))
+			.isInstanceOf(InvalidOrderStateException.class);
+	}
+
+	@Test
+	void cancel_nonExistingOrder_throwsOrderNotFoundException() {
+		when(orderRepository.findById(9999L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> orderService.cancelOrder(9999L))
+			.isInstanceOf(OrderNotFoundException.class);
 	}
 
 	@Test
@@ -125,18 +152,122 @@ class OrderServiceImplTest {
 	}
 
 	@Test
+	void update_pendingToProcessing_success() {
+		Order order = Order.builder().id(100L).status(OrderStatus.PENDING).build();
+		when(orderRepository.findById(100L)).thenReturn(Optional.of(order));
+		when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		var response = orderService.updateOrderStatus(100L, OrderStatus.PROCESSING);
+
+		assertThat(response.getStatus()).isEqualTo(OrderStatus.PROCESSING);
+	}
+
+	@Test
+	void update_processingToShipped_success() {
+		Order order = Order.builder().id(101L).status(OrderStatus.PROCESSING).build();
+		when(orderRepository.findById(101L)).thenReturn(Optional.of(order));
+		when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		var response = orderService.updateOrderStatus(101L, OrderStatus.SHIPPED);
+
+		assertThat(response.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+	}
+
+	@Test
+	void update_shippedToDelivered_success() {
+		Order order = Order.builder().id(102L).status(OrderStatus.SHIPPED).build();
+		when(orderRepository.findById(102L)).thenReturn(Optional.of(order));
+		when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		var response = orderService.updateOrderStatus(102L, OrderStatus.DELIVERED);
+
+		assertThat(response.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+	}
+
+	@Test
+	void update_invalidTransition_deliveredToPending_fails() {
+		Order order = Order.builder().id(103L).status(OrderStatus.DELIVERED).build();
+		when(orderRepository.findById(103L)).thenReturn(Optional.of(order));
+
+		assertThatThrownBy(() -> orderService.updateOrderStatus(103L, OrderStatus.PENDING))
+			.isInstanceOf(InvalidOrderStateException.class);
+	}
+
+	@Test
+	void updateStatus_forNonExistingOrder_throwsOrderNotFoundException() {
+		when(orderRepository.findById(8888L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> orderService.updateOrderStatus(8888L, OrderStatus.PROCESSING))
+			.isInstanceOf(OrderNotFoundException.class);
+	}
+
+	@Test
 	void schedulerUpdatesPendingToProcessing() {
-		Order o1 = Order.builder().id(1L).status(OrderStatus.PENDING).build();
-		Order o2 = Order.builder().id(2L).status(OrderStatus.PENDING).build();
-		when(orderRepository.findByStatus(OrderStatus.PENDING)).thenReturn(List.of(o1, o2));
+		when(orderRepository.moveAllPendingToProcessing(any())).thenReturn(2);
 
 		int updatedCount = orderService.processPendingOrders();
 
 		assertThat(updatedCount).isEqualTo(2);
-		assertThat(o1.getStatus()).isEqualTo(OrderStatus.PROCESSING);
-		assertThat(o2.getStatus()).isEqualTo(OrderStatus.PROCESSING);
+		verify(orderRepository).moveAllPendingToProcessing(any());
+	}
 
-		verify(orderRepository).saveAll(List.of(o1, o2));
+	@Test
+	void schedulerRunsSafely_whenNoPendingOrdersExist() {
+		Order cancelled = Order.builder().id(11L).status(OrderStatus.CANCELLED).build();
+		Order processing = Order.builder().id(12L).status(OrderStatus.PROCESSING).build();
+
+		when(orderRepository.moveAllPendingToProcessing(any())).thenReturn(0);
+
+		int updatedCount = orderService.processPendingOrders();
+
+		assertThat(updatedCount).isZero();
+		assertThat(cancelled.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+		assertThat(processing.getStatus()).isEqualTo(OrderStatus.PROCESSING);
+		verify(orderRepository).moveAllPendingToProcessing(any());
+	}
+
+	@Test
+	void cancelWhileSchedulerUpdates_onlyOneWins_cancelFirst() {
+		Order order = Order.builder().id(200L).status(OrderStatus.PENDING).build();
+		when(orderRepository.findById(200L)).thenReturn(Optional.of(order));
+		when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+		orderService.cancelOrder(200L); // cancels -> status becomes CANCELLED
+		when(orderRepository.moveAllPendingToProcessing(any())).thenReturn(0); // nothing left pending
+
+		int updated = orderService.processPendingOrders();
+
+		assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+		assertThat(updated).isZero();
+	}
+
+	@Test
+	void cancelWhileSchedulerUpdates_onlyOneWins_schedulerFirst() {
+		when(orderRepository.moveAllPendingToProcessing(any())).thenReturn(1);
+
+		int updated = orderService.processPendingOrders();
+
+		Order orderNowProcessing = Order.builder().id(201L).status(OrderStatus.PROCESSING).build();
+		when(orderRepository.findById(201L)).thenReturn(Optional.of(orderNowProcessing));
+
+		assertThat(updated).isEqualTo(1);
+		assertThatThrownBy(() -> orderService.cancelOrder(201L))
+			.isInstanceOf(InvalidOrderStateException.class);
+	}
+
+	@Test
+	void twoConcurrentStatusUpdates_oneFailsOptimisticLock_finalStateConsistent() {
+		Order order = Order.builder().id(300L).status(OrderStatus.PENDING).build();
+		when(orderRepository.findById(300L)).thenReturn(Optional.of(order));
+		when(orderRepository.save(any(Order.class)))
+			.thenAnswer(invocation -> invocation.getArgument(0))
+			.thenThrow(new ObjectOptimisticLockingFailureException(Order.class, 300L));
+
+		var first = orderService.updateOrderStatus(300L, OrderStatus.PROCESSING);
+		assertThat(first.getStatus()).isEqualTo(OrderStatus.PROCESSING);
+
+		assertThatThrownBy(() -> orderService.updateOrderStatus(300L, OrderStatus.SHIPPED))
+			.isInstanceOf(ObjectOptimisticLockingFailureException.class);
 	}
 }
 

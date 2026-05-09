@@ -6,6 +6,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -25,6 +26,14 @@ public class GlobalExceptionHandler {
 	@ExceptionHandler(InvalidOrderStateException.class)
 	public ResponseEntity<ApiErrorResponse> handleInvalidOrderState(
 		InvalidOrderStateException ex,
+		HttpServletRequest request
+	) {
+		return build(HttpStatus.CONFLICT, ex, request);
+	}
+
+	@ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+	public ResponseEntity<ApiErrorResponse> handleOptimisticLock(
+		ObjectOptimisticLockingFailureException ex,
 		HttpServletRequest request
 	) {
 		return build(HttpStatus.CONFLICT, ex, request);
