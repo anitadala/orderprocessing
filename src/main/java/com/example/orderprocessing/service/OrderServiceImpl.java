@@ -50,8 +50,12 @@ public class OrderServiceImpl implements OrderService {
 
 	@Override
 	@Transactional(readOnly = true)
-	public List<OrderResponse> getOrdersByStatus(OrderStatus status) {
-		return orderRepository.findByStatus(status).stream().map(this::toResponse).toList();
+	public List<OrderResponse> getOrders(OrderStatus status) {
+		List<Order> orders = status == null
+			? orderRepository.findAll()
+			: orderRepository.findByStatus(status);
+
+		return orders.stream().map(this::toResponse).toList();
 	}
 
 	@Override
@@ -143,4 +147,3 @@ public class OrderServiceImpl implements OrderService {
 			.build();
 	}
 }
-

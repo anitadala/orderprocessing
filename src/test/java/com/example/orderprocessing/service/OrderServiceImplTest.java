@@ -153,7 +153,7 @@ class OrderServiceImplTest {
 		when(orderRepository.findByStatus(OrderStatus.PENDING))
 			.thenReturn(List.of(Order.builder().id(1L).status(OrderStatus.PENDING).build()));
 
-		var responses = orderService.getOrdersByStatus(OrderStatus.PENDING);
+		var responses = orderService.getOrders(OrderStatus.PENDING);
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.get(0).getStatus()).isEqualTo(OrderStatus.PENDING);
@@ -164,10 +164,29 @@ class OrderServiceImplTest {
 	void fetchOrdersByStatus_whenNoneExist_returnsEmptyList() {
 		when(orderRepository.findByStatus(OrderStatus.CANCELLED)).thenReturn(List.of());
 
-		var responses = orderService.getOrdersByStatus(OrderStatus.CANCELLED);
+		var responses = orderService.getOrders(OrderStatus.CANCELLED);
 
 		assertThat(responses).isEmpty();
 		verify(orderRepository).findByStatus(OrderStatus.CANCELLED);
+	}
+
+	@Test
+	void fetchOrders_whenStatusIsNotProvided_returnsAllOrders() {
+		when(orderRepository.findAll())
+			.thenReturn(
+				List.of(
+					Order.builder().id(1L).status(OrderStatus.PENDING).build(),
+					Order.builder().id(2L).status(OrderStatus.SHIPPED).build()
+				)
+			);
+
+		var responses = orderService.getOrders(null);
+
+		assertThat(responses).hasSize(2);
+		assertThat(responses.get(0).getStatus()).isEqualTo(OrderStatus.PENDING);
+		assertThat(responses.get(1).getStatus()).isEqualTo(OrderStatus.SHIPPED);
+		verify(orderRepository).findAll();
+		verify(orderRepository, never()).findByStatus(any());
 	}
 
 	@Test

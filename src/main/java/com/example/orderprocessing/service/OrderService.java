@@ -10,7 +10,7 @@ public interface OrderService {
 
 	OrderResponse getOrderById(Long id);
 
-	List<OrderResponse> getOrdersByStatus(OrderStatus status);
+	List<OrderResponse> getOrders(OrderStatus status);
 
 	void cancelOrder(Long id);
 
@@ -21,4 +21,3 @@ public interface OrderService {
 	 */
 	int processPendingOrders();
 }
-

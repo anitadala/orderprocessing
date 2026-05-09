@@ -44,10 +44,10 @@ public class OrderController {
 	}
 
 	@GetMapping
-	public ResponseEntity<List<OrderResponse>> getOrdersByStatus(
-		@RequestParam("status") OrderStatus status
+	public ResponseEntity<List<OrderResponse>> getOrders(
+		@RequestParam(value = "status", required = false) OrderStatus status
 	) {
-		return ResponseEntity.ok(orderService.getOrdersByStatus(status));
+		return ResponseEntity.ok(orderService.getOrders(status));
 	}
 
 	@PutMapping("/{id}/status")
@@ -64,4 +64,3 @@ public class OrderController {
 		return ResponseEntity.noContent().build();
 	}
 }
-

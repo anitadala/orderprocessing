@@ -2,6 +2,7 @@ package com.example.orderprocessing.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -10,8 +11,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import com.example.orderprocessing.exception.InvalidOrderStateException;
 import com.example.orderprocessing.exception.OrderNotFoundException;
+import com.example.orderprocessing.dto.OrderResponse;
 import com.example.orderprocessing.model.OrderStatus;
 import com.example.orderprocessing.service.OrderService;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -80,6 +83,39 @@ class OrderControllerValidationTest {
 			.andExpect(jsonPath("$.fieldErrors.status").exists());
 
 		verifyNoInteractions(orderService);
+	}
+
+	@Test
+	void getOrders_returns200_whenStatusIsNotProvided() throws Exception {
+		when(orderService.getOrders(null))
+			.thenReturn(
+				List.of(
+					OrderResponse.builder().id(1L).status(OrderStatus.PENDING).build(),
+					OrderResponse.builder().id(2L).status(OrderStatus.SHIPPED).build()
+				)
+			);
+
+		mockMvc.perform(get("/orders"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].id").value(1))
+			.andExpect(jsonPath("$[0].status").value("PENDING"))
+			.andExpect(jsonPath("$[1].id").value(2))
+			.andExpect(jsonPath("$[1].status").value("SHIPPED"));
+
+		verify(orderService).getOrders(null);
+	}
+
+	@Test
+	void getOrders_returns200_whenStatusFilterIsProvided() throws Exception {
+		when(orderService.getOrders(OrderStatus.PENDING))
+			.thenReturn(List.of(OrderResponse.builder().id(1L).status(OrderStatus.PENDING).build()));
+
+		mockMvc.perform(get("/orders").param("status", "PENDING"))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$[0].id").value(1))
+			.andExpect(jsonPath("$[0].status").value("PENDING"));
+
+		verify(orderService).getOrders(OrderStatus.PENDING);
 	}
 
 	@Test
