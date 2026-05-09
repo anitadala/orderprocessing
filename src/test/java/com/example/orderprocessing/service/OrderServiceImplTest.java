@@ -9,6 +9,7 @@ import static org.mockito.Mockito.when;
 import com.example.orderprocessing.dto.CreateOrderRequest;
 import com.example.orderprocessing.dto.OrderItemRequest;
 import com.example.orderprocessing.exception.InvalidOrderStateException;
+import com.example.orderprocessing.exception.OrderNotFoundException;
 import com.example.orderprocessing.model.Order;
 import com.example.orderprocessing.model.OrderItem;
 import com.example.orderprocessing.model.OrderStatus;
@@ -90,6 +91,37 @@ class OrderServiceImplTest {
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.get(0).getStatus()).isEqualTo(OrderStatus.PENDING);
+	}
+
+	@Test
+	void fetchOrdersByStatus_whenNoneExist_returnsEmptyList() {
+		when(orderRepository.findByStatus(OrderStatus.CANCELLED)).thenReturn(List.of());
+
+		var responses = orderService.getOrdersByStatus(OrderStatus.CANCELLED);
+
+		assertThat(responses).isEmpty();
+	}
+
+	@Test
+	void fetchExistingOrderById_success() {
+		Order order = Order.builder()
+			.id(42L)
+			.status(OrderStatus.PENDING)
+			.build();
+		when(orderRepository.findById(42L)).thenReturn(Optional.of(order));
+
+		var response = orderService.getOrderById(42L);
+
+		assertThat(response.getId()).isEqualTo(42L);
+		assertThat(response.getStatus()).isEqualTo(OrderStatus.PENDING);
+	}
+
+	@Test
+	void fetchNonExistingOrder_throwsOrderNotFoundException() {
+		when(orderRepository.findById(999L)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> orderService.getOrderById(999L))
+			.isInstanceOf(OrderNotFoundException.class);
 	}
 
 	@Test
