@@ -2,6 +2,8 @@ package com.example.orderprocessing.exception;
 
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Instant;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -28,9 +30,30 @@ public class GlobalExceptionHandler {
 		return build(HttpStatus.CONFLICT, ex, request);
 	}
 
-	@ExceptionHandler({MethodArgumentTypeMismatchException.class, MethodArgumentNotValidException.class})
+	@ExceptionHandler(MethodArgumentNotValidException.class)
+	public ResponseEntity<ValidationErrorResponse> handleValidationError(
+		MethodArgumentNotValidException ex,
+		HttpServletRequest request
+	) {
+		HttpStatus status = HttpStatus.BAD_REQUEST;
+		Map<String, String> fieldErrors = new LinkedHashMap<>();
+		ex.getBindingResult().getFieldErrors().forEach(err -> fieldErrors.put(err.getField(), err.getDefaultMessage()));
+
+		ValidationErrorResponse body = ValidationErrorResponse.builder()
+			.timestamp(Instant.now())
+			.status(status.value())
+			.error(status.getReasonPhrase())
+			.message("Validation failed")
+			.path(request.getRequestURI())
+			.fieldErrors(fieldErrors)
+			.build();
+
+		return ResponseEntity.status(status).body(body);
+	}
+
+	@ExceptionHandler(MethodArgumentTypeMismatchException.class)
 	public ResponseEntity<ApiErrorResponse> handleBadRequest(
-		Exception ex,
+		MethodArgumentTypeMismatchException ex,
 		HttpServletRequest request
 	) {
 		return build(HttpStatus.BAD_REQUEST, ex, request);

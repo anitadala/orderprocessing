@@ -5,6 +5,7 @@ import com.example.orderprocessing.dto.OrderResponse;
 import com.example.orderprocessing.dto.UpdateOrderStatusRequest;
 import com.example.orderprocessing.model.OrderStatus;
 import com.example.orderprocessing.service.OrderService;
+import jakarta.validation.Valid;
 import java.net.URI;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -28,7 +29,7 @@ public class OrderController {
 	private final OrderService orderService;
 
 	@PostMapping
-	public ResponseEntity<OrderResponse> createOrder(@RequestBody CreateOrderRequest request) {
+	public ResponseEntity<OrderResponse> createOrder(@Valid @RequestBody CreateOrderRequest request) {
 		OrderResponse created = orderService.createOrder(request);
 		URI location = ServletUriComponentsBuilder.fromCurrentRequest()
 			.path("/{id}")
@@ -52,7 +53,7 @@ public class OrderController {
 	@PutMapping("/{id}/status")
 	public ResponseEntity<OrderResponse> updateOrderStatus(
 		@PathVariable Long id,
-		@RequestBody UpdateOrderStatusRequest request
+		@Valid @RequestBody UpdateOrderStatusRequest request
 	) {
 		return ResponseEntity.ok(orderService.updateOrderStatus(id, request.getStatus()));
 	}
