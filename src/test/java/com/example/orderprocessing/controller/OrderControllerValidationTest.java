@@ -52,6 +52,19 @@ class OrderControllerValidationTest {
 	}
 
 	@Test
+	void createOrder_returns400_whenPriceIsZero() throws Exception {
+		mockMvc.perform(
+				post("/orders")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"items\":[{\"productId\":\"P1\",\"quantity\":1,\"price\":0}]}")
+			)
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.fieldErrors['items[0].price']").exists());
+
+		verifyNoInteractions(orderService);
+	}
+
+	@Test
 	void updateStatus_returns400_whenStatusMissing() throws Exception {
 		mockMvc.perform(
 				put("/orders/1/status")
