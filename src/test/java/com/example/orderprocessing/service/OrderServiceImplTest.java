@@ -3,6 +3,7 @@ package com.example.orderprocessing.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -100,6 +101,7 @@ class OrderServiceImplTest {
 		orderService.cancelOrder(5L);
 
 		assertThat(order.getStatus()).isEqualTo(OrderStatus.CANCELLED);
+		verify(orderRepository).findById(5L);
 		verify(orderRepository).save(order);
 	}
 
@@ -110,6 +112,8 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.cancelOrder(6L))
 			.isInstanceOf(InvalidOrderStateException.class);
+		verify(orderRepository).findById(6L);
+		verify(orderRepository, never()).save(any(Order.class));
 	}
 
 	@Test
@@ -119,6 +123,8 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.cancelOrder(7L))
 			.isInstanceOf(InvalidOrderStateException.class);
+		verify(orderRepository).findById(7L);
+		verify(orderRepository, never()).save(any(Order.class));
 	}
 
 	@Test
@@ -128,6 +134,8 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.cancelOrder(8L))
 			.isInstanceOf(InvalidOrderStateException.class);
+		verify(orderRepository).findById(8L);
+		verify(orderRepository, never()).save(any(Order.class));
 	}
 
 	@Test
@@ -136,6 +144,8 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.cancelOrder(9999L))
 			.isInstanceOf(OrderNotFoundException.class);
+		verify(orderRepository).findById(9999L);
+		verify(orderRepository, never()).save(any(Order.class));
 	}
 
 	@Test
@@ -147,6 +157,7 @@ class OrderServiceImplTest {
 
 		assertThat(responses).hasSize(1);
 		assertThat(responses.get(0).getStatus()).isEqualTo(OrderStatus.PENDING);
+		verify(orderRepository).findByStatus(OrderStatus.PENDING);
 	}
 
 	@Test
@@ -156,6 +167,7 @@ class OrderServiceImplTest {
 		var responses = orderService.getOrdersByStatus(OrderStatus.CANCELLED);
 
 		assertThat(responses).isEmpty();
+		verify(orderRepository).findByStatus(OrderStatus.CANCELLED);
 	}
 
 	@Test
@@ -170,6 +182,7 @@ class OrderServiceImplTest {
 
 		assertThat(response.getId()).isEqualTo(42L);
 		assertThat(response.getStatus()).isEqualTo(OrderStatus.PENDING);
+		verify(orderRepository).findById(42L);
 	}
 
 	@Test
@@ -178,6 +191,7 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.getOrderById(999L))
 			.isInstanceOf(OrderNotFoundException.class);
+		verify(orderRepository).findById(999L);
 	}
 
 	@Test
@@ -189,6 +203,8 @@ class OrderServiceImplTest {
 		var response = orderService.updateOrderStatus(100L, OrderStatus.PROCESSING);
 
 		assertThat(response.getStatus()).isEqualTo(OrderStatus.PROCESSING);
+		verify(orderRepository).findById(100L);
+		verify(orderRepository).save(order);
 	}
 
 	@Test
@@ -200,6 +216,8 @@ class OrderServiceImplTest {
 		var response = orderService.updateOrderStatus(101L, OrderStatus.SHIPPED);
 
 		assertThat(response.getStatus()).isEqualTo(OrderStatus.SHIPPED);
+		verify(orderRepository).findById(101L);
+		verify(orderRepository).save(order);
 	}
 
 	@Test
@@ -211,6 +229,8 @@ class OrderServiceImplTest {
 		var response = orderService.updateOrderStatus(102L, OrderStatus.DELIVERED);
 
 		assertThat(response.getStatus()).isEqualTo(OrderStatus.DELIVERED);
+		verify(orderRepository).findById(102L);
+		verify(orderRepository).save(order);
 	}
 
 	@Test
@@ -220,6 +240,8 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.updateOrderStatus(103L, OrderStatus.PENDING))
 			.isInstanceOf(InvalidOrderStateException.class);
+		verify(orderRepository).findById(103L);
+		verify(orderRepository, never()).save(any(Order.class));
 	}
 
 	@Test
@@ -228,6 +250,8 @@ class OrderServiceImplTest {
 
 		assertThatThrownBy(() -> orderService.updateOrderStatus(8888L, OrderStatus.PROCESSING))
 			.isInstanceOf(OrderNotFoundException.class);
+		verify(orderRepository).findById(8888L);
+		verify(orderRepository, never()).save(any(Order.class));
 	}
 
 	@Test
