@@ -14,10 +14,12 @@ import com.example.orderprocessing.model.Order;
 import com.example.orderprocessing.model.OrderItem;
 import com.example.orderprocessing.model.OrderStatus;
 import com.example.orderprocessing.repository.OrderRepository;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -34,6 +36,8 @@ class OrderServiceImplTest {
 
 	@Test
 	void createOrder_successfully() {
+		Instant createdAt = Instant.parse("2026-05-09T10:15:30Z");
+		Instant updatedAt = Instant.parse("2026-05-09T10:16:30Z");
 		CreateOrderRequest request = CreateOrderRequest.builder()
 			.items(
 				List.of(
@@ -46,6 +50,8 @@ class OrderServiceImplTest {
 		when(orderRepository.save(any(Order.class))).thenAnswer(invocation -> {
 			Order o = invocation.getArgument(0);
 			o.setId(1L);
+			o.setCreatedAt(createdAt);
+			o.setUpdatedAt(updatedAt);
 			long itemId = 10L;
 			for (OrderItem item : o.getItems()) {
 				item.setId(itemId++);
@@ -55,11 +61,34 @@ class OrderServiceImplTest {
 
 		var response = orderService.createOrder(request);
 
+		ArgumentCaptor<Order> orderCaptor = ArgumentCaptor.forClass(Order.class);
+		verify(orderRepository).save(orderCaptor.capture());
+		Order savedOrder = orderCaptor.getValue();
+
+		assertThat(savedOrder.getStatus()).isEqualTo(OrderStatus.PENDING);
+		assertThat(savedOrder.getItems()).hasSize(2);
+		assertThat(savedOrder.getItems().get(0).getProductId()).isEqualTo("P1");
+		assertThat(savedOrder.getItems().get(0).getQuantity()).isEqualTo(2);
+		assertThat(savedOrder.getItems().get(0).getPrice()).isEqualTo(10.5);
+		assertThat(savedOrder.getItems().get(0).getOrder()).isSameAs(savedOrder);
+		assertThat(savedOrder.getItems().get(1).getProductId()).isEqualTo("P2");
+		assertThat(savedOrder.getItems().get(1).getQuantity()).isEqualTo(1);
+		assertThat(savedOrder.getItems().get(1).getPrice()).isEqualTo(99.99);
+		assertThat(savedOrder.getItems().get(1).getOrder()).isSameAs(savedOrder);
+
 		assertThat(response.getId()).isEqualTo(1L);
 		assertThat(response.getStatus()).isEqualTo(OrderStatus.PENDING);
+		assertThat(response.getCreatedAt()).isEqualTo(createdAt);
+		assertThat(response.getUpdatedAt()).isEqualTo(updatedAt);
 		assertThat(response.getItems()).hasSize(2);
+		assertThat(response.getItems().get(0).getId()).isEqualTo(10L);
 		assertThat(response.getItems().get(0).getProductId()).isEqualTo("P1");
+		assertThat(response.getItems().get(0).getQuantity()).isEqualTo(2);
 		assertThat(response.getItems().get(0).getPrice()).isEqualTo(10.5);
+		assertThat(response.getItems().get(1).getId()).isEqualTo(11L);
+		assertThat(response.getItems().get(1).getProductId()).isEqualTo("P2");
+		assertThat(response.getItems().get(1).getQuantity()).isEqualTo(1);
+		assertThat(response.getItems().get(1).getPrice()).isEqualTo(99.99);
 	}
 
 	@Test
@@ -270,4 +299,3 @@ class OrderServiceImplTest {
 			.isInstanceOf(ObjectOptimisticLockingFailureException.class);
 	}
 }
-
