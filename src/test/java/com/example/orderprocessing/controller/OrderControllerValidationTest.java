@@ -1,11 +1,16 @@
 package com.example.orderprocessing.controller;
 
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.example.orderprocessing.exception.InvalidOrderStateException;
+import com.example.orderprocessing.exception.OrderNotFoundException;
+import com.example.orderprocessing.model.OrderStatus;
 import com.example.orderprocessing.service.OrderService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -76,5 +81,33 @@ class OrderControllerValidationTest {
 
 		verifyNoInteractions(orderService);
 	}
-}
 
+	@Test
+	void getOrder_returns404WithMeaningfulMessage_whenOrderNotFound() throws Exception {
+		when(orderService.getOrderById(99L)).thenThrow(new OrderNotFoundException(99L));
+
+		mockMvc.perform(get("/orders/99"))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.status").value(404))
+			.andExpect(jsonPath("$.error").value("Not Found"))
+			.andExpect(jsonPath("$.message").value("Order not found: 99"))
+			.andExpect(jsonPath("$.path").value("/orders/99"));
+	}
+
+	@Test
+	void updateStatus_returns409WithMeaningfulMessage_whenOrderStateInvalid() throws Exception {
+		when(orderService.updateOrderStatus(7L, OrderStatus.PROCESSING))
+			.thenThrow(new InvalidOrderStateException(7L, OrderStatus.SHIPPED, "transition to PROCESSING"));
+
+		mockMvc.perform(
+				put("/orders/7/status")
+					.contentType(MediaType.APPLICATION_JSON)
+					.content("{\"status\":\"PROCESSING\"}")
+			)
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.status").value(409))
+			.andExpect(jsonPath("$.error").value("Conflict"))
+			.andExpect(jsonPath("$.message").value("Cannot transition to PROCESSING order 7 when status is SHIPPED"))
+			.andExpect(jsonPath("$.path").value("/orders/7/status"));
+	}
+}
